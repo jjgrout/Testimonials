@@ -1,0 +1,56 @@
+{
+  "name": "testimonials",
+  "version": "1.0.0",
+  "description": "Private AWS serverless testimonial generator for controlled VPC environments.",
+  "private": true,
+  "main": "bin/testimonials.ts",
+  "scripts": {
+    "build": "npm run typecheck && npm run build:frontend",
+    "build:frontend": "vite build",
+    "cdk": "cdk",
+    "deploy": "cdk deploy",
+    "synth": "cdk synth",
+    "test": "npm run typecheck",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jjgrout/Testimonials.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/jjgrout/Testimonials/issues"
+  },
+  "homepage": "https://github.com/jjgrout/Testimonials#readme",
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1070.0",
+    "@aws-sdk/client-s3": "^3.1070.0",
+    "@aws-sdk/client-secrets-manager": "^3.1070.0",
+    "@aws-sdk/s3-request-presigner": "^3.1070.0",
+    "@types/mime-types": "^3.0.1",
+    "@types/node": "^25.9.3",
+    "@types/pdfkit": "^0.17.6",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "aws-cdk-lib": "^2.260.0",
+    "constructs": "^10.6.0",
+    "esbuild": "^0.28.1",
+    "mammoth": "^1.12.0",
+    "mime-types": "^3.0.2",
+    "pdf-parse": "^2.4.5",
+    "pdfkit": "^0.19.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "word-extractor": "^1.0.4"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.162",
+    "aws-cdk": "^2.1127.0",
+    "tsx": "^4.22.4"
+  }
+}

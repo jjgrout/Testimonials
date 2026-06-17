@@ -1,0 +1,9 @@
+{
+  "app": "npx tsx bin/testimonials.ts",
+  "context": {
+    "bucketName": "jta-data-bucket",
+    "bucketPrefix": "JTA data set/",
+    "bedrockModelId": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+    "privateClientCidrs": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+  }
+}
