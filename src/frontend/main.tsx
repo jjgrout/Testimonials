@@ -298,7 +298,8 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => Promise<voi
           </form>
           <p className="hint">
             Searches the configured <code>s3://jta-data-bucket/JTA data set/</code> prefix by
-            object title.
+            object title. Supported image files and scanned PDFs/TIFFs are OCR processed with
+            Textract, including printed and handwritten text where detectable.
           </p>
 
           <div className="file-list">

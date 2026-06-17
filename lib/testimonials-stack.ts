@@ -89,6 +89,11 @@ export class TestimonialsStack extends Stack {
       privateDnsEnabled: true,
       securityGroups: [endpointSecurityGroup]
     });
+    vpc.addInterfaceEndpoint("TextractEndpoint", {
+      service: new ec2.InterfaceVpcEndpointAwsService("textract"),
+      privateDnsEnabled: true,
+      securityGroups: [endpointSecurityGroup]
+    });
 
     const authSecret = new secretsmanager.Secret(this, "AuthCredentialsSecret", {
       description:
@@ -142,7 +147,7 @@ export class TestimonialsStack extends Stack {
       memorySize: 1536,
       runtime: lambda.Runtime.NODEJS_20_X,
       securityGroups: [lambdaSecurityGroup],
-      timeout: Duration.minutes(2),
+      timeout: Duration.minutes(5),
       tracing: lambda.Tracing.ACTIVE,
       vpc,
       vpcSubnets: {
@@ -173,6 +178,12 @@ export class TestimonialsStack extends Stack {
     applicationHandler.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ["bedrock:InvokeModel"],
+        resources: ["*"]
+      })
+    );
+    applicationHandler.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["textract:DetectDocumentText"],
         resources: ["*"]
       })
     );

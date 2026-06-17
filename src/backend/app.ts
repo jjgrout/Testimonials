@@ -20,6 +20,14 @@ import {
   GetSecretValueCommand,
   SecretsManagerClient
 } from "@aws-sdk/client-secrets-manager";
+import {
+  DetectDocumentTextCommand,
+  GetDocumentTextDetectionCommand,
+  StartDocumentTextDetectionCommand,
+  TextractClient,
+  type Block,
+  type GetDocumentTextDetectionCommandOutput
+} from "@aws-sdk/client-textract";
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
 import PDFDocument from "pdfkit";
@@ -30,6 +38,7 @@ const WordExtractor = require("word-extractor");
 const s3 = new S3Client({});
 const bedrock = new BedrockRuntimeClient({});
 const secrets = new SecretsManagerClient({});
+const textract = new TextractClient({});
 
 const bucketName = requiredEnv("BUCKET_NAME");
 const bucketPrefix = requiredEnv("BUCKET_PREFIX");
@@ -39,18 +48,25 @@ const bedrockModelId = requiredEnv("BEDROCK_MODEL_ID");
 const maxContextChars = Number(process.env.MAX_CONTEXT_CHARS ?? "160000");
 const sessionCookieName = "testimonial_session";
 const sessionTtlSeconds = 8 * 60 * 60;
+const imageOcrExtensions = new Set([".jpeg", ".jpg", ".png"]);
+const asyncOcrExtensions = new Set([".pdf", ".tif", ".tiff"]);
 const supportedExtensions = new Set([
   ".csv",
   ".doc",
   ".docx",
   ".htm",
   ".html",
+  ".jpeg",
+  ".jpg",
   ".json",
   ".log",
   ".md",
   ".pdf",
+  ".png",
   ".rtf",
   ".text",
+  ".tif",
+  ".tiff",
   ".tsv",
   ".txt",
   ".xml",
@@ -411,10 +427,24 @@ async function parseDocumentText(key: string, buffer: Buffer): Promise<string> {
     const parser = new PDFParse({ data: new Uint8Array(buffer) });
     try {
       const result = await parser.getText();
-      return result.text;
+      const embeddedText = normaliseWhitespace(result.text);
+      if (embeddedText.length >= 250) {
+        return embeddedText;
+      }
+
+      const ocrText = await extractTextWithTextractAsync(key);
+      return combineExtractedText(embeddedText, ocrText);
     } finally {
       await parser.destroy();
     }
+  }
+
+  if (imageOcrExtensions.has(extension)) {
+    return extractTextWithTextractSync(key);
+  }
+
+  if (asyncOcrExtensions.has(extension)) {
+    return extractTextWithTextractAsync(key);
   }
 
   if (extension === ".docx") {
@@ -447,6 +477,127 @@ async function parseDocumentText(key: string, buffer: Buffer): Promise<string> {
   }
 
   return decoded;
+}
+
+async function extractTextWithTextractSync(key: string): Promise<string> {
+  const response = await textract.send(
+    new DetectDocumentTextCommand({
+      Document: {
+        S3Object: {
+          Bucket: bucketName,
+          Name: key
+        }
+      }
+    })
+  );
+  const text = textractLines(response.Blocks);
+  if (!text.trim()) {
+    throw new Error("Textract OCR did not detect printed or handwritten text");
+  }
+  return text;
+}
+
+async function extractTextWithTextractAsync(key: string): Promise<string> {
+  const startResponse = await textract.send(
+    new StartDocumentTextDetectionCommand({
+      DocumentLocation: {
+        S3Object: {
+          Bucket: bucketName,
+          Name: key
+        }
+      }
+    })
+  );
+
+  if (!startResponse.JobId) {
+    throw new Error("Textract did not return a job identifier");
+  }
+
+  const firstPage = await waitForTextractJob(startResponse.JobId);
+  const text = textractLines(await collectTextractBlocks(startResponse.JobId, firstPage));
+  if (!text.trim()) {
+    throw new Error("Textract OCR did not detect printed or handwritten text");
+  }
+  return text;
+}
+
+async function waitForTextractJob(
+  jobId: string
+): Promise<GetDocumentTextDetectionCommandOutput> {
+  const deadline = Date.now() + 240000;
+
+  while (Date.now() < deadline) {
+    const response = await textract.send(
+      new GetDocumentTextDetectionCommand({
+        JobId: jobId,
+        MaxResults: 1000
+      })
+    );
+
+    if (response.JobStatus === "SUCCEEDED" || response.JobStatus === "PARTIAL_SUCCESS") {
+      return response;
+    }
+    if (response.JobStatus === "FAILED") {
+      throw new Error(response.StatusMessage ?? "Textract OCR job failed");
+    }
+
+    await sleep(3000);
+  }
+
+  throw new Error("Textract OCR job timed out before completion");
+}
+
+async function collectTextractBlocks(
+  jobId: string,
+  firstPage: GetDocumentTextDetectionCommandOutput
+): Promise<Block[]> {
+  const blocks = [...(firstPage.Blocks ?? [])];
+  let nextToken = firstPage.NextToken;
+
+  while (nextToken) {
+    const response = await textract.send(
+      new GetDocumentTextDetectionCommand({
+        JobId: jobId,
+        MaxResults: 1000,
+        NextToken: nextToken
+      })
+    );
+    blocks.push(...(response.Blocks ?? []));
+    nextToken = response.NextToken;
+  }
+
+  return blocks;
+}
+
+function textractLines(blocks: Block[] | undefined): string {
+  return (blocks ?? [])
+    .filter((block) => block.BlockType === "LINE" && block.Text)
+    .sort((a, b) => {
+      const pageDelta = (a.Page ?? 0) - (b.Page ?? 0);
+      if (pageDelta !== 0) {
+        return pageDelta;
+      }
+      const topDelta = (a.Geometry?.BoundingBox?.Top ?? 0) - (b.Geometry?.BoundingBox?.Top ?? 0);
+      if (Math.abs(topDelta) > 0.01) {
+        return topDelta;
+      }
+      return (a.Geometry?.BoundingBox?.Left ?? 0) - (b.Geometry?.BoundingBox?.Left ?? 0);
+    })
+    .map((block) => block.Text)
+    .join("\n");
+}
+
+function combineExtractedText(embeddedText: string, ocrText: string): string {
+  if (!embeddedText.trim()) {
+    return ocrText;
+  }
+  if (!ocrText.trim()) {
+    return embeddedText;
+  }
+  if (ocrText.includes(embeddedText) || embeddedText.includes(ocrText)) {
+    return ocrText.length > embeddedText.length ? ocrText : embeddedText;
+  }
+  return `${embeddedText}\n\n--- OCR TEXT ---\n${ocrText}`;
 }
 
 function validateSelectedKeys(keys: string[] | undefined): string[] {
@@ -782,6 +933,10 @@ function stripRtf(value: string): string {
     .replace(/\\[a-zA-Z]+\d* ?/g, " ")
     .replace(/[{}]/g, " ")
     .replace(/\s+/g, " ");
+}
+
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function epochSeconds(): number {

@@ -11,7 +11,8 @@ The app is designed for controlled AWS environments with no internet egress from
 compute. Users connect through a VPN/private network path into the VPC, authenticate with a
 username/password stored in AWS Secrets Manager, search S3 object titles for a person
 identifier, select source files, generate a 250-350 word testimonial with Amazon Bedrock
-Claude 3.5 Sonnet, edit the generated text, and export a formatted PDF.
+Claude 3.5 Sonnet, edit the generated text, and export a formatted PDF. Printed and
+handwritten OCR for supported image/scanned files is provided by Amazon Textract.
 
 ## Architecture
 
@@ -24,11 +25,14 @@ Claude 3.5 Sonnet, edit the generated text, and export a formatted PDF.
   - Secrets Manager
   - CloudWatch Logs
   - Bedrock Runtime
+  - Textract
 - **Secrets Manager** generated initial admin credential and session signing secret.
 - **Existing S3 bucket/prefix** read access only:
   - bucket: `jta-data-bucket`
   - prefix: `JTA data set/`
 - **Amazon Bedrock Claude 3.5 Sonnet** via configurable model ID.
+- **Amazon Textract OCR** for supported image documents and scanned PDFs/TIFFs, including
+  handwritten text detection.
 - **React/Vite SPA** packaged into the Lambda bundle and served through the private API.
 
 The CDK stack defaults to the Australia East AWS region (`ap-southeast-2`) when
@@ -44,8 +48,8 @@ The CDK stack defaults to the Australia East AWS region (`ap-southeast-2`) when
   - The backend validates credentials server-side.
   - Sessions use HMAC-signed, `HttpOnly`, `Secure`, `SameSite=Strict` cookies.
 - S3 permissions are scoped to listing and reading the configured prefix.
-- Bedrock invocation is performed server-side; source document text is not returned to the
-  browser.
+- Bedrock and Textract invocation is performed server-side; source document text is not
+  returned to the browser.
 
 > Note: Amazon Cognito user-pool browser authentication is intentionally not used because
 > this app is intended to operate without internet access from the controlled network path.
@@ -55,13 +59,17 @@ The CDK stack defaults to the Australia East AWS region (`ap-southeast-2`) when
 The Lambda parser supports:
 
 - `.txt`, `.text`, `.log`
-- `.pdf` text extraction for text-based PDFs
+- `.pdf` text extraction for text-based PDFs, with Textract OCR fallback for scanned or
+  image-only PDFs
+- `.jpg`, `.jpeg`, `.png` OCR through Textract
+- `.tif`, `.tiff` asynchronous OCR through Textract
 - `.docx`
 - `.doc` best-effort legacy Word extraction
 - `.md`, `.csv`, `.tsv`, `.json`, `.xml`, `.html`, `.htm`, `.rtf`, `.yaml`, `.yml`
 
-Scanned/image-only PDFs do not contain embedded text. Add an Amazon Textract private
-workflow if OCR is required.
+Textract returns printed and handwritten text where it can confidently detect it. OCR
+accuracy still depends on scan quality, handwriting legibility, skew, resolution, and
+document contrast.
 
 ## Prompt template
 
@@ -160,11 +168,16 @@ equivalent private network connection. The frontend and API share the same priva
 Set the `privateClientCidrs` CDK context value to the actual VPN/client CIDR ranges that
 should be allowed to connect to the private endpoint.
 
-## Bedrock prerequisites
+## Bedrock and Textract prerequisites
 
 Before deploying or using generation:
 
 1. Confirm Bedrock is available in the target region.
 2. Enable access to Claude 3.5 Sonnet for the AWS account.
 3. Confirm the `bedrock-runtime` VPC endpoint service is available in the target region.
-4. If the approved model ID differs, pass `-c bedrockModelId=<approved-model-id>`.
+4. Confirm Textract and the `textract` VPC endpoint service are available in the target
+   region.
+5. If the approved model ID differs, pass `-c bedrockModelId=<approved-model-id>`.
+
+For encrypted S3 objects, ensure the Lambda/Textract call path also has the required KMS
+decrypt permissions.
