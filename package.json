@@ -9,6 +9,7 @@
     "build:frontend": "vite build",
     "cdk": "cdk",
     "deploy": "cdk deploy",
+    "docs:docx": "node scripts/generate-guide-docx.mjs",
     "synth": "cdk synth",
     "test": "npm run typecheck",
     "typecheck": "tsc --noEmit"
@@ -52,6 +53,7 @@
   "devDependencies": {
     "@types/aws-lambda": "^8.10.162",
     "aws-cdk": "^2.1127.0",
+    "docx": "^9.7.1",
     "tsx": "^4.22.4"
   }
 }
