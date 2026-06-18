@@ -10,6 +10,7 @@
     "cdk": "cdk",
     "deploy": "cdk deploy",
     "docs:docx": "node scripts/generate-guide-docx.mjs",
+    "install:aws": "bash scripts/install-aws.sh",
     "synth": "cdk synth",
     "test": "npm run typecheck",
     "typecheck": "tsc --noEmit"

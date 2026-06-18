@@ -38,6 +38,48 @@ handwritten OCR for supported image/scanned files is provided by Amazon Textract
 The CDK stack defaults to the Australia East AWS region (`ap-southeast-2`) when
 `CDK_DEFAULT_REGION` is not set.
 
+## Easiest AWS terminal install
+
+Use this path from AWS CloudShell, an EC2 administrator terminal, or another terminal that
+already has AWS credentials for the target account.
+
+```bash
+git clone https://github.com/jjgrout/Testimonials.git
+cd Testimonials
+git checkout cursor/private-testimonial-app-66e4
+npm run install:aws
+```
+
+The guided installer asks for:
+
+- AWS region, defaulting to `ap-southeast-2`
+- S3 bucket, defaulting to `jta-data-bucket`
+- S3 prefix, defaulting to `JTA data set/`
+- Bedrock model ID, defaulting to Claude 3.5 Sonnet
+- VPN/private client CIDRs that may access the private API endpoint
+- Whether to check S3 access before deployment
+- Whether to run CDK bootstrap
+- Whether CDK should deploy without additional approval prompts
+
+The installer then runs the full deployment flow:
+
+```text
+AWS identity check -> npm dependency install -> build -> CDK bootstrap -> synth -> deploy -> output next steps
+```
+
+For repeatable installs, copy the example config and edit it first:
+
+```bash
+cp install.env.example install.env
+nano install.env
+set -a
+source install.env
+set +a
+npm run install:aws
+```
+
+Set `NON_INTERACTIVE=true` in `install.env` only after reviewing all values.
+
 ## Security model
 
 - Runtime Lambdas are deployed into isolated private subnets with `natGateways: 0`.

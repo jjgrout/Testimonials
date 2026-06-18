@@ -20,6 +20,98 @@ https://github.com/jjgrout/Testimonials/pull/1
 
 ---
 
+# Fastest recommended installation method
+
+If you are working in AWS CloudShell, an EC2 administrator terminal, or another AWS-authenticated terminal, the easiest way to deploy this app is to use the guided installer.
+
+The short version is:
+
+```bash
+git clone https://github.com/jjgrout/Testimonials.git
+cd Testimonials
+git checkout cursor/private-testimonial-app-66e4
+npm run install:aws
+```
+
+The command:
+
+```bash
+npm run install:aws
+```
+
+runs the script:
+
+```text
+scripts/install-aws.sh
+```
+
+The installer is designed to make the terminal deployment easier for someone who does not want to manually remember every CDK command. It checks that AWS CLI, Node.js, and npm are available. It checks which AWS account you are logged in to. It asks for the deployment settings. It can check whether the S3 prefix is visible. It installs dependencies. It builds the app. It can run CDK bootstrap. It synthesizes the CloudFormation template. It deploys the CDK stack. At the end, it prints the private application URL and the command used to retrieve the generated admin password.
+
+The installer asks for these values:
+
+- AWS region. The default is `ap-southeast-2`, which is AWS Asia Pacific Sydney and is commonly used as Australia East.
+- S3 bucket. The default is `jta-data-bucket`.
+- S3 prefix. The default is `JTA data set/`.
+- Bedrock model ID. The default is `anthropic.claude-3-5-sonnet-20240620-v1:0`.
+- Private client CIDRs. These are the VPN or private network address ranges allowed to reach the private app endpoint.
+- Whether to check the S3 prefix before deploying.
+- Whether to run CDK bootstrap.
+- Whether to allow CDK to deploy without asking a second approval question.
+
+Example private client CIDR:
+
+```text
+10.50.0.0/22
+```
+
+If your VPN gives users addresses from `10.50.0.0/22`, enter that value when the installer asks for private client CIDRs.
+
+For repeatable installs, use the provided example configuration file:
+
+```bash
+cp install.env.example install.env
+nano install.env
+set -a
+source install.env
+set +a
+npm run install:aws
+```
+
+The command:
+
+```bash
+set -a
+```
+
+tells the shell to export variables from the file into the environment. Exported variables are visible to child commands such as `npm run install:aws`.
+
+The command:
+
+```bash
+source install.env
+```
+
+loads the values from `install.env`.
+
+The command:
+
+```bash
+set +a
+```
+
+turns off automatic exporting after the file is loaded.
+
+If you want the installer to run without prompts, edit `install.env` and set:
+
+```text
+NON_INTERACTIVE=true
+CONFIRM_INSTALL=true
+```
+
+Only use non-interactive mode after you have carefully checked the AWS account, region, bucket, prefix, Bedrock model ID, and private client CIDRs. Non-interactive mode is useful for controlled automation but can deploy to the wrong account if your AWS credentials point somewhere unexpected.
+
+---
+
 # 1. Important plain-language overview
 
 ## 1.1 What you are deploying
@@ -1587,6 +1679,23 @@ Use this checklist after deployment:
 ---
 
 # 32. Quick command reference
+
+Guided AWS terminal install:
+
+```bash
+npm run install:aws
+```
+
+Guided AWS terminal install with a config file:
+
+```bash
+cp install.env.example install.env
+nano install.env
+set -a
+source install.env
+set +a
+npm run install:aws
+```
 
 Install dependencies:
 
