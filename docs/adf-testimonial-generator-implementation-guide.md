@@ -66,6 +66,42 @@ Example private client CIDR:
 
 If your VPN gives users addresses from `10.50.0.0/22`, enter that value when the installer asks for private client CIDRs.
 
+Do not type an unmatched bracketed value such as:
+
+```text
+[10.50.0.0/22
+```
+
+That is not valid CIDR notation. The value should be:
+
+```text
+10.50.0.0/22
+```
+
+If you have more than one range, separate them with commas:
+
+```text
+10.50.0.0/22,10.60.0.0/22
+```
+
+The installer now normalises common input forms and checks the CIDR before deployment. If the CIDR is malformed, it stops before CDK deploy and tells you which value is invalid.
+
+If you see a message like this after running a global `cdk` command:
+
+```text
+This CDK CLI is not compatible with the CDK library used by your application.
+Cloud assembly schema version mismatch
+```
+
+it means the globally installed CDK CLI is older than the CDK library used by this project. Use the project-local CDK CLI from inside the repository instead:
+
+```bash
+npm run cdk -- --version
+npm run cdk -- flags --unstable=flags
+```
+
+The guided installer already uses the project-local CDK CLI through `npx cdk`, so this mismatch normally only appears when you manually run the global `cdk` command.
+
 For repeatable installs, use the provided example configuration file:
 
 ```bash

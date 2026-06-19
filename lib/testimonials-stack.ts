@@ -257,7 +257,13 @@ export class TestimonialsStack extends Stack {
       if (typeof cidr !== "string") {
         throw new Error("Every privateClientCidrs entry must be a CIDR string");
       }
-      return cidr;
+      const normalisedCidr = this.normalisePrivateClientCidr(cidr);
+      if (!this.isValidIpv4Cidr(normalisedCidr)) {
+        throw new Error(
+          `Invalid privateClientCidrs entry '${cidr}'. Use IPv4 CIDR notation such as 10.0.0.0/20.`
+        );
+      }
+      return normalisedCidr;
     });
   }
 
@@ -268,16 +274,41 @@ export class TestimonialsStack extends Stack {
 
     const trimmed = value.trim();
     if (trimmed.startsWith("[")) {
-      const parsed = JSON.parse(trimmed) as unknown;
-      if (!Array.isArray(parsed)) {
-        throw new Error("privateClientCidrs JSON must be an array");
+      try {
+        const parsed = JSON.parse(trimmed) as unknown;
+        if (!Array.isArray(parsed)) {
+          throw new Error("privateClientCidrs JSON must be an array");
+        }
+        return parsed;
+      } catch {
+        return trimmed
+          .split(",")
+          .map((cidr) => cidr.trim())
+          .filter(Boolean);
       }
-      return parsed;
     }
 
     return trimmed
       .split(",")
       .map((cidr) => cidr.trim())
       .filter(Boolean);
+  }
+
+  private normalisePrivateClientCidr(value: string): string {
+    return value
+      .trim()
+      .replace(/^[\s[\]("'`]+/, "")
+      .replace(/[\s[\]("'`]+$/, "");
+  }
+
+  private isValidIpv4Cidr(value: string): boolean {
+    const match = value.match(
+      /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/(\d|[12]\d|3[0-2])$/
+    );
+    if (!match) {
+      return false;
+    }
+
+    return match.slice(1, 5).every((part) => Number(part) >= 0 && Number(part) <= 255);
   }
 }

@@ -61,6 +61,21 @@ The guided installer asks for:
 - Whether to run CDK bootstrap
 - Whether CDK should deploy without additional approval prompts
 
+When asked for VPN/private client CIDRs, enter plain CIDR values:
+
+```text
+10.0.0.0/20
+```
+
+or comma-separated values:
+
+```text
+10.0.0.0/20,10.1.0.0/20
+```
+
+Do not enter an unmatched bracketed value such as `[10.0.0.0/20`. The installer now
+normalises common input forms and stops early if a CIDR is malformed.
+
 The installer then runs the full deployment flow:
 
 ```text
@@ -79,6 +94,16 @@ npm run install:aws
 ```
 
 Set `NON_INTERACTIVE=true` in `install.env` only after reviewing all values.
+
+If you see a CDK CLI schema mismatch after running a global `cdk` command, use the repository
+local CDK CLI instead:
+
+```bash
+npm run cdk -- --version
+npm run cdk -- flags --unstable=flags
+```
+
+The installer uses `npx cdk` from this repository, which matches the CDK library version.
 
 ## Security model
 

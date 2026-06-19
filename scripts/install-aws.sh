@@ -120,6 +120,70 @@ read_output_value() {
   node -e "const fs=require('fs'); const p=process.argv[1]; const stack=process.argv[2]; const key=process.argv[3]; const data=JSON.parse(fs.readFileSync(p,'utf8')); process.stdout.write(data?.[stack]?.[key] || '');" "${OUTPUTS_FILE}" "${STACK_NAME}" "${output_key}"
 }
 
+normalize_private_cidrs() {
+  node - "$1" <<'NODE'
+const raw = process.argv[2] ?? "";
+
+function fail(message) {
+  console.error(message);
+  process.exit(1);
+}
+
+function parseValues(value) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+    if (typeof parsed === "string") {
+      return [parsed];
+    }
+  } catch {
+    // Fall back to comma-separated input below.
+  }
+
+  return trimmed.split(",");
+}
+
+function cleanValue(value) {
+  return String(value)
+    .trim()
+    .replace(/^[\s[\]("'`]+/, "")
+    .replace(/[\s[\]("'`]+$/, "");
+}
+
+function isValidIpv4Cidr(value) {
+  const match = value.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/(\d|[12]\d|3[0-2])$/);
+  if (!match) {
+    return false;
+  }
+  return match.slice(1, 5).every((part) => Number(part) >= 0 && Number(part) <= 255);
+}
+
+const cidrs = parseValues(raw)
+  .flatMap((value) => String(value).split(","))
+  .map(cleanValue)
+  .filter(Boolean);
+
+if (!cidrs.length) {
+  fail("At least one VPN/private client CIDR is required.");
+}
+
+for (const cidr of cidrs) {
+  if (!isValidIpv4Cidr(cidr)) {
+    fail(`Invalid IPv4 CIDR '${cidr}'. Use a value like 10.0.0.0/20. Do not include unmatched brackets.`);
+  }
+}
+
+process.stdout.write(JSON.stringify([...new Set(cidrs)]));
+NODE
+}
+
 run_step() {
   local label="$1"
   shift
@@ -168,7 +232,9 @@ export AWS_DEFAULT_REGION="${AWS_REGION}"
 prompt_value TESTIMONIAL_BUCKET "S3 bucket containing source documents" "jta-data-bucket"
 prompt_value TESTIMONIAL_PREFIX "S3 prefix containing source documents" "JTA data set/"
 prompt_value BEDROCK_MODEL_ID "Bedrock model ID" "anthropic.claude-3-5-sonnet-20240620-v1:0"
-prompt_value PRIVATE_CLIENT_CIDRS "VPN/private client CIDRs, comma-separated" "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+prompt_value PRIVATE_CLIENT_CIDRS "VPN/private client CIDRs, comma-separated, for example 10.0.0.0/20" "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+PRIVATE_CLIENT_CIDRS_JSON="$(normalize_private_cidrs "${PRIVATE_CLIENT_CIDRS}")"
+PRIVATE_CLIENT_CIDRS="$(node -e "process.stdout.write(JSON.parse(process.argv[1]).join(','))" "${PRIVATE_CLIENT_CIDRS_JSON}")"
 prompt_yes_no CHECK_S3_PREFIX "Check whether the configured S3 prefix is listable before deploying?" "y"
 prompt_yes_no RUN_CDK_BOOTSTRAP "Run CDK bootstrap for this AWS account and region?" "y"
 prompt_yes_no AUTO_APPROVE_CDK "Make CDK deployment non-interactive after this installer confirmation?" "y"
@@ -225,8 +291,6 @@ else
 fi
 
 run_step "9. Synthesizing CloudFormation template" npm run synth
-
-PRIVATE_CLIENT_CIDRS_JSON="$(node -e "const cidrs=process.argv[1].split(',').map(v=>v.trim()).filter(Boolean); process.stdout.write(JSON.stringify(cidrs));" "${PRIVATE_CLIENT_CIDRS}")"
 
 DEPLOY_ARGS=(
   "${STACK_NAME}"
