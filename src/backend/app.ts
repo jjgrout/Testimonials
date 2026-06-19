@@ -29,7 +29,7 @@ import {
   type GetDocumentTextDetectionCommandOutput
 } from "@aws-sdk/client-textract";
 import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
+import pdfParse from "pdf-parse/lib/pdf-parse";
 import PDFDocument from "pdfkit";
 import { lookup as lookupMimeType } from "mime-types";
 
@@ -424,19 +424,14 @@ async function parseDocumentText(key: string, buffer: Buffer): Promise<string> {
   const extension = extensionOf(key);
 
   if (extension === ".pdf") {
-    const parser = new PDFParse({ data: new Uint8Array(buffer) });
-    try {
-      const result = await parser.getText();
-      const embeddedText = normaliseWhitespace(result.text);
-      if (embeddedText.length >= 250) {
-        return embeddedText;
-      }
-
-      const ocrText = await extractTextWithTextractAsync(key);
-      return combineExtractedText(embeddedText, ocrText);
-    } finally {
-      await parser.destroy();
+    const result = await pdfParse(buffer);
+    const embeddedText = normaliseWhitespace(result.text);
+    if (embeddedText.length >= 250) {
+      return embeddedText;
     }
+
+    const ocrText = await extractTextWithTextractAsync(key);
+    return combineExtractedText(embeddedText, ocrText);
   }
 
   if (imageOcrExtensions.has(extension)) {
